@@ -1,0 +1,6 @@
+{
+  "name": "TriBrain AI Orchestrator",
+  "description": "Unified 3-AI orchestration engine harnessing Gemini, Groq, and DeepSeek as a synchronized single brain specialized in multimodal synthesis, rapid execution, and deep reasoning.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,143 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'google.com');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == 'spartanlad689@gmail.com';
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Entity Validation Helpers
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'createdAt', 'updatedAt']) &&
+        data.uid is string && data.uid == request.auth.uid &&
+        data.email is string && data.email.size() <= 256 &&
+        (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 128)) &&
+        (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 1024)) &&
+        data.createdAt is string;
+    }
+
+    function isValidOrchestration(data) {
+      return data.keys().hasAll(['id', 'userId', 'prompt', 'mode', 'masterSolution', 'createdAt']) &&
+        data.keys().hasOnly(['id', 'userId', 'prompt', 'mode', 'masterSolution', 'groqSummary', 'deepseekSummary', 'totalLatencyMs', 'createdAt']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.userId is string && data.userId == request.auth.uid &&
+        data.prompt is string && data.prompt.size() <= 10000 &&
+        data.mode is string && data.mode.size() <= 64 &&
+        data.masterSolution is string && data.masterSolution.size() <= 50000 &&
+        (!('groqSummary' in data) || (data.groqSummary is string && data.groqSummary.size() <= 20000)) &&
+        (!('deepseekSummary' in data) || (data.deepseekSummary is string && data.deepseekSummary.size() <= 20000)) &&
+        (!('totalLatencyMs' in data) || data.totalLatencyMs is number) &&
+        data.createdAt is string;
+    }
+
+    function isValidChatThread(data) {
+      return data.keys().hasAll(['id', 'userId', 'title', 'createdAt']) &&
+        data.keys().hasOnly(['id', 'userId', 'title', 'model', 'systemInstruction', 'createdAt', 'updatedAt']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.userId is string && data.userId == request.auth.uid &&
+        data.title is string && data.title.size() <= 256 &&
+        (!('model' in data) || (data.model is string && data.model.size() <= 64)) &&
+        (!('systemInstruction' in data) || (data.systemInstruction is string && data.systemInstruction.size() <= 2000)) &&
+        data.createdAt is string;
+    }
+
+    function isValidChatMessage(data, threadId) {
+      return data.keys().hasAll(['id', 'threadId', 'userId', 'role', 'content', 'createdAt']) &&
+        data.keys().hasOnly(['id', 'threadId', 'userId', 'role', 'content', 'createdAt']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.threadId == threadId &&
+        data.userId is string && data.userId == request.auth.uid &&
+        (data.role == 'user' || data.role == 'model' || data.role == 'system') &&
+        data.content is string && data.content.size() <= 30000 &&
+        data.createdAt is string;
+    }
+
+    function isValidCreation(data) {
+      return data.keys().hasAll(['id', 'userId', 'type', 'prompt', 'createdAt']) &&
+        data.keys().hasOnly(['id', 'userId', 'type', 'prompt', 'resultUrl', 'textOutput', 'metadata', 'createdAt']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.userId is string && data.userId == request.auth.uid &&
+        (data.type == 'image' || data.type == 'video' || data.type == 'music' || data.type == 'transcription' || data.type == 'grounding') &&
+        data.prompt is string && data.prompt.size() <= 5000 &&
+        (!('resultUrl' in data) || (data.resultUrl is string && data.resultUrl.size() <= 500000)) &&
+        (!('textOutput' in data) || (data.textOutput is string && data.textOutput.size() <= 30000)) &&
+        (!('metadata' in data) || (data.metadata is string && data.metadata.size() <= 10000)) &&
+        data.createdAt is string;
+    }
+
+    // 1. Users Collection
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if (isOwner(userId) || isAdmin()) && isValidUser(incoming()) && incoming().uid == existing().uid;
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // 2. Orchestrations Collection
+    match /orchestrations/{orchestrationId} {
+      allow get: if isValidId(orchestrationId) && (isOwner(existing().userId) || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isValidId(orchestrationId) && isValidOrchestration(incoming());
+      allow update: if isValidId(orchestrationId) && (isOwner(existing().userId) || isAdmin()) && isValidOrchestration(incoming()) && incoming().userId == existing().userId;
+      allow delete: if isValidId(orchestrationId) && (isOwner(existing().userId) || isAdmin());
+    }
+
+    // 3. Chat Threads & Messages
+    match /chat_threads/{threadId} {
+      allow get: if isValidId(threadId) && (isOwner(existing().userId) || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isValidId(threadId) && isValidChatThread(incoming());
+      allow update: if isValidId(threadId) && (isOwner(existing().userId) || isAdmin()) && isValidChatThread(incoming()) && incoming().userId == existing().userId;
+      allow delete: if isValidId(threadId) && (isOwner(existing().userId) || isAdmin());
+
+      match /messages/{messageId} {
+        allow get: if isValidId(messageId) && (isOwner(existing().userId) || isAdmin());
+        allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+        allow create: if isValidId(messageId) && isValidChatMessage(incoming(), threadId) && get(/databases/$(database)/documents/chat_threads/$(threadId)).data.userId == request.auth.uid;
+        allow update: if isValidId(messageId) && (isOwner(existing().userId) || isAdmin()) && isValidChatMessage(incoming(), threadId) && incoming().userId == existing().userId;
+        allow delete: if isValidId(messageId) && (isOwner(existing().userId) || isAdmin());
+      }
+    }
+
+    // 4. Creations Collection (Images, Videos, Music, Transcripts)
+    match /creations/{creationId} {
+      allow get: if isValidId(creationId) && (isOwner(existing().userId) || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isValidId(creationId) && isValidCreation(incoming());
+      allow update: if isValidId(creationId) && (isOwner(existing().userId) || isAdmin()) && isValidCreation(incoming()) && incoming().userId == existing().userId;
+      allow delete: if isValidId(creationId) && (isOwner(existing().userId) || isAdmin());
+    }
+  }
+}

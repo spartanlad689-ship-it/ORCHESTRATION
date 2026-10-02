@@ -1,0 +1,102 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile document",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "displayName": { "type": "string", "maxLength": 128 },
+        "photoURL": { "type": "string", "maxLength": 1024 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "Orchestration": {
+      "title": "Orchestration",
+      "description": "Saved 3-AI orchestration single-brain run",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "prompt": { "type": "string", "maxLength": 10000 },
+        "mode": { "type": "string", "maxLength": 64 },
+        "masterSolution": { "type": "string", "maxLength": 50000 },
+        "groqSummary": { "type": "string", "maxLength": 20000 },
+        "deepseekSummary": { "type": "string", "maxLength": 20000 },
+        "totalLatencyMs": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "prompt", "mode", "masterSolution", "createdAt"]
+    },
+    "ChatThread": {
+      "title": "ChatThread",
+      "description": "Multi-turn Gemini chatbot thread",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 256 },
+        "model": { "type": "string", "maxLength": 64 },
+        "systemInstruction": { "type": "string", "maxLength": 2000 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "title", "createdAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Message in chat thread",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "threadId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "role": { "type": "string", "enum": ["user", "model", "system"] },
+        "content": { "type": "string", "maxLength": 30000 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "threadId", "userId", "role", "content", "createdAt"]
+    },
+    "Creation": {
+      "title": "Creation",
+      "description": "Media generation artifact (image, video, music, audio transcript, search/maps grounding)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "enum": ["image", "video", "music", "transcription", "grounding"] },
+        "prompt": { "type": "string", "maxLength": 5000 },
+        "resultUrl": { "type": "string", "maxLength": 500000 },
+        "textOutput": { "type": "string", "maxLength": 30000 },
+        "metadata": { "type": "string", "maxLength": 10000 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "type", "prompt", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile collection"
+    },
+    "/orchestrations/{orchestrationId}": {
+      "schema": "Orchestration",
+      "description": "User saved multi-AI orchestrations"
+    },
+    "/chat_threads/{threadId}": {
+      "schema": "ChatThread",
+      "description": "User chat threads"
+    },
+    "/chat_threads/{threadId}/messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Messages inside a chat thread"
+    },
+    "/creations/{creationId}": {
+      "schema": "Creation",
+      "description": "User generated creations (images, music, video, grounding, audio)"
+    }
+  }
+}
